@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>My Photo Booth</title>
+    <title>Photobooth v1</title>
     <link rel="stylesheet" href="style.css">
 
     <!-- SweetAlert CDN-->
@@ -78,7 +78,6 @@
 
 
     <script>
-            // Load photos from localStorage
 
         const slots = document.querySelectorAll(".slot-select");
         const previewSlots = document.querySelectorAll(".slot-preview");
@@ -104,7 +103,7 @@
             return URL.createObjectURL(blob);
         }
 
-            // ---- IndexedDB loader ----
+        // load photos from IndexDB
         async function loadPhotos() {
             const db = await idb.openDB("photoboothDB", 1);
             const photos = [];
@@ -116,8 +115,8 @@
         }
 
 
-    // ---- Gallery logic ----
-    function initGallery(photos) {
+    // ---- Shots logic ----
+    function initShots(photos) {
         const slots = document.querySelectorAll(".slot-select");
         const previewSlots = document.querySelectorAll(".slot-preview");
         const finalSlots = document.querySelectorAll(".slot-final");
@@ -186,7 +185,9 @@
             }
         });
 
-        // ---- Actions ----
+        // ACTIONS
+
+        // Download
         downloadBtn.addEventListener("click", async function() {
             if (selectedPhotos.length < 3) {
                 Swal.fire("Pick 3 Photos!", "You need to select exactly 3 shots.", "error");
@@ -241,7 +242,26 @@
             Swal.fire("Downloaded!", "Your photobooth strip has been saved.", "success");
         });
 
+        // Restart
         restartBtn.addEventListener("click", async function() {
+            Swal.fire({
+                title: "Restart?",
+                text: "This will clear your photos and go back to the start.",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Restart",
+                cancelButtonText: "Cancel"
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const db = await idb.openDB("photoboothDB", 1);
+                    await db.clear("photos");
+                    window.location.href = "index.html";
+                }
+            });
+        });
+
+        // Send to email
+        sendBtn.addEventListener("click", async function() {
             Swal.fire({
                 title: "Restart?",
                 text: "This will clear your photos and go back to the start.",
@@ -259,14 +279,14 @@
         });
     }
 
-    // ---- Init ----
+    // Initialize shots
     (async () => {
         const photos = await loadPhotos();
         if (!photos.length) {
             window.location.href = "index.html";
             return;
         }
-        initGallery(photos);
+        initShots(photos);
     })();
 
     </script>

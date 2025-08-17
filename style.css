@@ -56,6 +56,7 @@ video, canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .overlay {
@@ -242,8 +243,8 @@ button:disabled:hover {
 .preview-strip .slot-preview img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: center;
+  object-fit: cover;
+  object-position: center; 
 }
 
 
@@ -305,8 +306,8 @@ button:disabled:hover {
 .final-strip .slot-final img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: center;
+  object-fit: cover;     /* 👈 fills the container, crops overflow */
+  object-position: center; 
 }
 
 
