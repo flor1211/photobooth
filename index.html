@@ -92,37 +92,46 @@
         }
 
         // Function to start camera
-        async function startCamera(deviceId) {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop()); // stop old stream
-            }
+// Get all cameras (works on iPhone/Android/laptops)
+async function getCameras() {
+    try {
+        // Ask permission once so Safari/iOS reveals labels
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
 
-            try {
-                if (photoIndex == slots.length){
-                    Swal.fire(
-                        'Error!',
-                        'No available slots! Delete shots or proceed to the Next step',
-                        'error'
-                    );
-                    return;
-                }
-                
-                await openCam(deviceId);
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === "videoinput");
 
-            } catch (err) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Camera Error',
-                    text: err.message + " or select another camera." || 'Could not access the camera. Please check permissions or device settings.'
-                });
+        cameraSelect.innerHTML = "";
 
-                closeCam();
-                captureBtn.disabled = true;
-                captureBtn.style.display = "none";
+        videoDevices.forEach((device, i) => {
+            const option = document.createElement("option");
+            option.value = device.deviceId;
 
-                console.error(err);
-            }
+            // Better labeling for iPhone (fallback to generic if empty)
+            option.textContent = device.label || `Camera ${i + 1}`;
+            cameraSelect.appendChild(option);
+        });
+
+        // ✅ Default to back camera if available
+        const rearCam = videoDevices.find(d => 
+            d.label.toLowerCase().includes("back")
+        );
+        if (rearCam) {
+            cameraSelect.value = rearCam.deviceId;
+        } else {
+            cameraSelect.value = videoDevices[0].deviceId;
         }
+
+    } catch (err) {
+        Swal.fire({
+            icon: "error",
+            title: "Camera Error",
+            text: err.message || "Could not access the camera. Please check permissions."
+        });
+        console.error("getCameras error:", err);
+    }
+}
+
 
 
         // Toggle Camera button
