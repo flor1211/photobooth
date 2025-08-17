@@ -91,8 +91,6 @@
         });
         }
 
-        getCameras();
-
         // Function to start camera
         async function startCamera(deviceId) {
             if (stream) {
@@ -130,6 +128,7 @@
         // Toggle Camera button
         toggleCamBtn.onclick = async () => {
             if (!camOpen) {
+                await getCameras();
                 await startCamera(cameraSelect.value);
             } else {
                 closeCam();
