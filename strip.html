@@ -38,7 +38,7 @@
         </div>
 
         <!-- Preview -->
-        <div style="margin-left: 100px;">
+        <div class="preview-container" style="margin-left: 70px; ">
 
             <!-- Photobooth Strip -->
             <div id="preview-strip" class="preview-strip">
@@ -52,7 +52,7 @@
         </div>
 
         <!-- Export -->
-        <div id="export-container" style="margin-left: 100px; visibility: hidden; position: absolute; left: -9999px;">
+        <div id="export-container" style="visibility: hidden; position: absolute; left: -9999px;">
             <!-- Photobooth Strip -->
             <div id="final-strip" class="final-strip">
                 <div class="slot-final"><span>1</span></div>
@@ -64,10 +64,10 @@
             </div>
         </div>
 
-        <div style="margin-left: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px">
+        <div class="action-container" style="margin-left: 50px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px">
             <h3>Action</h3>
-            <button id="downloadBtn" style="width: 100%; background-color: rgb(30, 209, 75)"><i class="bi bi-file-earmark-arrow-down-fill"></i> Download Strip</button>
-            <button id="sendBtn" style="width: 100%;"><i class="bi bi-envelope-paper-fill"></i> Send to Email</button>
+            <button id="downloadBtn" class="downloadBtn" style="width: 100%;" disabled><i class="bi bi-file-earmark-arrow-down-fill"></i> Download Strip</button>
+            <button id="sendBtn" style="width: 100%;" disabled><i class="bi bi-envelope-paper-fill"></i> Send to Email</button>
             <button id="restartBtn" style="width: 100%; background-color: rgb(255, 41, 41)" >Restart</button>
         </div>
 
@@ -121,10 +121,6 @@
         const previewSlots = document.querySelectorAll(".slot-preview");
         const finalSlots = document.querySelectorAll(".slot-final");
 
-        const downloadBtn = document.getElementById("downloadBtn");
-        const sendBtn = document.getElementById("sendBtn");
-        const restartBtn = document.getElementById("restartBtn");
-
         let selectedPhotos = [];
 
         function updateFinalSlots() {
@@ -149,6 +145,17 @@
                     slot.innerHTML = `<span>${i + 1}</span>`; 
                 }
             });
+
+            if (selectedPhotos.length == 3){
+                sendBtn.disabled = false;
+                downloadBtn.disabled = false;
+            } else {
+                sendBtn.disabled = true;
+                downloadBtn.disabled = true;
+            }
+
+            console.log("Selected: " + selectedPhotos.length);
+
         }
 
         // Render slots
@@ -184,13 +191,14 @@
                 });
             }
         });
-
+    
         // ACTIONS
 
         // Download
         downloadBtn.addEventListener("click", async function() {
-            if (selectedPhotos.length < 3) {
-                Swal.fire("Pick 3 Photos!", "You need to select exactly 3 shots.", "error");
+            console.log(selectedPhotos.length);
+            if (selectedPhotos.length != 3) {
+                Swal.fire("Error", "You need to select 3 shots.", "error");
                 return;
             }
 
@@ -234,22 +242,40 @@
             ctx.drawImage(overlay, 0, 0, canvasWidth, canvasHeight);
 
             // Export
-            const link = document.createElement("a");
-            link.download = "photobooth-strip.png";
-            link.href = canvas.toDataURL("image/png");
-            link.click();
+            const { value: filename } = await Swal.fire({
+                title: "Save as",
+                input: "text",
+                inputPlaceholder: "Full Name",
+                showCancelButton: true,
+                confirmButtonText: "Send",
+                cancelButtonText: "Cancel",
+                inputValidator: (value) => {
+                    if (!value) {
+                        return "Please enter a valid name!";
+                    }
+                }
+            });
 
-            Swal.fire("Downloaded!", "Your photobooth strip has been saved.", "success");
+            if (filename) {
+                const link = document.createElement("a");
+                link.download = filename + ".png";
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+
+                Swal.fire("Success", "Your photobooth strip has been saved.", "success");
+                }
+
+
         });
 
         // Restart
         restartBtn.addEventListener("click", async function() {
             Swal.fire({
-                title: "Restart?",
-                text: "This will clear your photos and go back to the start.",
+                title: "Restart",
+                text: "This will clear your photos and go back from the start.",
                 icon: "warning",
                 showCancelButton: true,
-                confirmButtonText: "Restart",
+                confirmButtonText: "Confirm",
                 cancelButtonText: "Cancel"
             }).then(async (result) => {
                 if (result.isConfirmed) {
@@ -262,21 +288,42 @@
 
         // Send to email
         sendBtn.addEventListener("click", async function() {
-            Swal.fire({
-                title: "Restart?",
-                text: "This will clear your photos and go back to the start.",
-                icon: "warning",
+            if (selectedPhotos.length != 3){
+                return;
+            }
+
+            const { value: email } = await Swal.fire({
+                title: "Send to Email",
+                input: "email",
+                inputLabel: "Email address",
+                inputPlaceholder: "name@example.com",
                 showCancelButton: true,
-                confirmButtonText: "Restart",
-                cancelButtonText: "Cancel"
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    const db = await idb.openDB("photoboothDB", 1);
-                    await db.clear("photos");
-                    window.location.href = "index.html";
+                confirmButtonText: "Send",
+                cancelButtonText: "Cancel",
+                inputValidator: (value) => {
+                    if (!value) {
+                        return "Please enter a valid email address!";
+                    }
+
+                    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailPattern.test(value)) {
+                        return "Please enter a valid email address!";
+                    }
                 }
             });
+
+            if (email) {
+                Swal.fire({
+                    title: 'Success',
+                    text: 'Your photostrip will be sent to ' + email,
+                    icon: 'success',
+                    timer: 1000,
+                    showConfirmButton: false,
+                });
+
+            }
         });
+
     }
 
     // Initialize shots

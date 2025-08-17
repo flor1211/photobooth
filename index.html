@@ -20,6 +20,14 @@
   <div class="container">
     <h1>Water & Wonders Photobooth</h1>
 
+        <div class="controls">
+            <div class="control-item">
+                <label for="cameraSelect">Camera:</label>
+                <select id="cameraSelect">
+                </select>
+            </div>
+        </div>
+        <br>
     <div class="main-row">
 
         <div class="booth">
@@ -42,7 +50,7 @@
                 <button style="margin-right: 10px;" id="resetBtn" disabled>Reset</button>
             </div>
 
-            <div class="preview">
+            <div class="preview" >
                 <div class="slot"><span>1</span></div>
                 <div class="slot"><span>2</span></div>
                 <div class="slot"><span>3</span></div>
@@ -57,13 +65,7 @@
 
     </div>
     
-    <div class="controls">
-        <div class="control-item">
-            <label for="cameraSelect">Camera:</label>
-            <select id="cameraSelect">
-            </select>
-        </div>
-    </div>
+
 
 
   </div>
@@ -121,7 +123,7 @@
         // Function to start camera
         async function startCamera(deviceId) {
             if (stream) {
-                stream.getTracks().forEach(track => track.stop()); // stop old stream
+                stream.getTracks().forEach(track => track.stop());
             }
 
             try {
@@ -179,16 +181,16 @@
 
         function closeCam(){
             if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            video.srcObject = null;
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
             }
-            captureBtn.style.display = "none";
-            captureBtn.disabled = true;
-            resetBtn.disabled = true;
-            toggleCamBtn.innerHTML = '<i class="bi bi-camera-video-off"></i>';
-            toggleCamBtn.style = "background-color: red";
+                captureBtn.style.display = "none";
+                captureBtn.disabled = true;
+                resetBtn.disabled = true;
+                toggleCamBtn.innerHTML = '<i class="bi bi-camera-video-off"></i>';
+                toggleCamBtn.style = "background-color: red";
 
-            camOpen = false;
+                camOpen = false;
         }
 
         // When camera selection changes
@@ -222,7 +224,7 @@
 
             if (photoIndex < slots.length) {
 
-                let count = 5; // Countdown
+                let count = 3; // Countdown
                 countdown.textContent = count;
                 captureBtn.textContent = "Capturing...";
                 captureBtn.disabled = true;
@@ -262,7 +264,7 @@
                 slots[photoIndex].innerHTML = "";
                 slots[photoIndex].appendChild(img);
 
-                // store base64 in memory for localStorage later
+                // store base64 in memory for IndexDB later
                 slots[photoIndex].dataset.base64 = dataUrl;
 
                 photoIndex++;
@@ -285,7 +287,6 @@
         resetBtn.onclick = () => {
 
             if (photoIndex != slots.length && photoIndex < 1){
-                resetBtn.disabled = true;
                 return;
             }
 
@@ -302,14 +303,17 @@
                     slots.forEach((slot, i) => {
                         slot.innerHTML = `<span>${i+1}</span>`;
                     });
+
                     photoIndex = 0;
                     resetBtn.disabled = true;
 
-                    Swal.fire(
-                        'Reset!',
-                        'All photos have been cleared.',
-                        'success'
-                    );
+                    Swal.fire({
+                        title: 'Reset',
+                        text: 'All photos have been cleared.',
+                        icon: 'success',
+                        timer: 1000,
+                        showConfirmButton: false,
+                    });
                 }
             });
         };
