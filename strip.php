@@ -1,0 +1,354 @@
+<?php
+    session_start();
+
+    // If user is not logged in, redirect to login page
+    if (!isset($_SESSION["user"])) {
+        header("Location: login.php");
+        exit();
+    }
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Photobooth v1</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- SweetAlert CDN-->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Bootstrap Icons CDN-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+
+</head>
+<body>
+  <div class="container">
+    <h1>Water & Wonders Photobooth</h1>
+
+    <div class="final-row">
+
+        <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px;">
+                <h2>Select 3 shots</h2>
+            </div>
+
+            <div class="preview-select">
+                <div class="slot-select"><span>1</span></div>
+                <div class="slot-select"><span>2</span></div>
+                <div class="slot-select"><span>3</span></div>
+                <div class="slot-select"><span>4</span></div>
+                <div class="slot-select"><span>5</span></div>
+                <div class="slot-select"><span>6</span></div>
+            </div>
+            
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-container" style="margin-left: 70px; ">
+
+            <!-- Photobooth Strip -->
+            <div id="preview-strip" class="preview-strip">
+                <div class="slot-preview"><span>1</span></div>
+                <div class="slot-preview"><span>2</span></div>
+                <div class="slot-preview"><span>3</span></div>
+
+                <!-- overlay on top -->
+                <div class="overlay-preview"></div>
+            </div>
+        </div>
+
+        <!-- Export -->
+        <div id="export-container" style="visibility: hidden; position: absolute; left: -9999px;">
+            <!-- Photobooth Strip -->
+            <div id="final-strip" class="final-strip">
+                <div class="slot-final"><span>1</span></div>
+                <div class="slot-final"><span>2</span></div>
+                <div class="slot-final"><span>3</span></div>
+
+                <!-- overlay on top -->
+                <div class="overlay-final"></div>
+            </div>
+        </div>
+
+        <div class="action-container" style="margin-left: 50px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px">
+            <h3>Action</h3>
+            <button id="downloadBtn" class="downloadBtn" style="width: 100%;" disabled><i class="bi bi-file-earmark-arrow-down-fill"></i> Download Strip</button>
+            <button id="sendBtn" style="width: 100%;" disabled><i class="bi bi-envelope-paper-fill"></i> Send to Email</button>
+            <button id="restartBtn" style="width: 100%; background-color: rgb(255, 41, 41)" >Restart</button>
+        </div>
+
+
+    </div>
+
+  </div>
+
+
+    <script>
+
+        const slots = document.querySelectorAll(".slot-select");
+        const previewSlots = document.querySelectorAll(".slot-preview");
+        const finalSlots = document.querySelectorAll(".slot-final");
+
+        const downloadBtn = document.getElementById("downloadBtn");
+        const sendBtn = document.getElementById("sendBtn");
+        const restartBtn = document.getElementById("restartBtn");
+
+        let selectedPhotos = [];
+
+        // base64 to blob
+        function base64ToBlobUrl(base64) {
+            const arr = base64.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blob = new Blob([u8arr], { type: mime });
+            return URL.createObjectURL(blob);
+        }
+
+        // load photos from IndexDB
+        async function loadPhotos() {
+            const db = await idb.openDB("photoboothDB", 1);
+            const photos = [];
+            for (let i = 0; i < 6; i++) {
+                const photo = await db.get("photos", `photo-${i}`);
+                if (photo) photos.push(photo);
+            }
+            return photos;
+        }
+
+
+    // ---- Shots logic ----
+    function initShots(photos) {
+        const slots = document.querySelectorAll(".slot-select");
+        const previewSlots = document.querySelectorAll(".slot-preview");
+        const finalSlots = document.querySelectorAll(".slot-final");
+
+        let selectedPhotos = [];
+
+        function updateFinalSlots() {
+            previewSlots.forEach((slot, i) => {
+                slot.innerHTML = "";
+                if (selectedPhotos[i]) {
+                    const img = document.createElement("img");
+                    img.src = base64ToBlobUrl(selectedPhotos[i]);
+                    slot.appendChild(img);
+                } else {
+                    slot.innerHTML = `<span>${i + 1}</span>`; 
+                }
+            });
+
+            finalSlots.forEach((slot, i) => {
+                slot.innerHTML = "";
+                if (selectedPhotos[i]) {
+                    const img = document.createElement("img");
+                    img.src = base64ToBlobUrl(selectedPhotos[i]);
+                    slot.appendChild(img);
+                } else {
+                    slot.innerHTML = `<span>${i + 1}</span>`; 
+                }
+            });
+
+            if (selectedPhotos.length == 3){
+                sendBtn.disabled = false;
+                downloadBtn.disabled = false;
+            } else {
+                sendBtn.disabled = true;
+                downloadBtn.disabled = true;
+            }
+
+            console.log("Selected: " + selectedPhotos.length);
+
+        }
+
+        // Render slots
+        photos.forEach((src, i) => {
+            if (slots[i]) {
+                slots[i].innerHTML = ""; 
+                const img = document.createElement("img");
+                img.src = base64ToBlobUrl(src);  
+                img.style.cursor = "pointer";
+                img.dataset.index = i;
+                slots[i].appendChild(img);
+
+                // Selection logic
+                img.addEventListener("click", () => {
+                    const idx = selectedPhotos.indexOf(src);
+
+                    if (idx > -1) {
+                        // Remove selection
+                        selectedPhotos.splice(idx, 1);
+                        img.style.border = "none";
+                        img.style.opacity = "100%";
+                    } else {
+                        // Limit 3
+                        if (selectedPhotos.length >= 3) {
+                            Swal.fire("Limit Reached!", "You can only select 3 photos.", "error");
+                            return;
+                        }
+                        selectedPhotos.push(src);
+                        img.style.opacity = "50%";
+                    }
+
+                    updateFinalSlots();
+                });
+            }
+        });
+    
+        // ACTIONS
+
+        // Download
+        downloadBtn.addEventListener("click", async function() {
+            console.log(selectedPhotos.length);
+            if (selectedPhotos.length != 3) {
+                Swal.fire("Error", "You need to select 3 shots.", "error");
+                return;
+            }
+
+            const canvasWidth = 707;
+            const canvasHeight = 2000;
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // Background
+            const bg = new Image();
+            bg.src = "assets/background.png";
+            await bg.decode();
+            ctx.drawImage(bg, 0, 0, canvasWidth, canvasHeight);
+
+            async function drawSlot(imgSrc, x, y, w, h) {
+                return new Promise((resolve, reject) => {
+                    if (!imgSrc) { resolve(); return; }
+                    const img = new Image();
+                    img.src = base64ToBlobUrl(imgSrc);
+                    img.onload = () => {
+                        ctx.fillStyle = "white";
+                        ctx.fillRect(x - 5, y - 5, w + 10, h + 10);
+                        ctx.drawImage(img, x, y, w, h);
+                        resolve();
+                    };
+                    img.onerror = reject;
+                });
+            }
+
+            const slotX = (canvasWidth - 625) / 2; 
+            await drawSlot(selectedPhotos[0], slotX, 70, 625, 485);
+            await drawSlot(selectedPhotos[1], slotX, 585, 625, 485);
+            await drawSlot(selectedPhotos[2], slotX, 1100, 625, 485);
+
+            // Overlay
+            const overlay = new Image();
+            overlay.src = "assets/design.png";
+            await overlay.decode();
+            ctx.drawImage(overlay, 0, 0, canvasWidth, canvasHeight);
+
+            // Export
+            const { value: filename } = await Swal.fire({
+                title: "Save as",
+                input: "text",
+                inputPlaceholder: "Full Name",
+                showCancelButton: true,
+                confirmButtonText: "Send",
+                cancelButtonText: "Cancel",
+                inputValidator: (value) => {
+                    if (!value) {
+                        return "Please enter a valid name!";
+                    }
+                }
+            });
+
+            if (filename) {
+                const link = document.createElement("a");
+                link.download = filename + ".png";
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+
+                Swal.fire("Success", "Your photobooth strip has been saved.", "success");
+                }
+
+
+        });
+
+        // Restart
+        restartBtn.addEventListener("click", async function() {
+            Swal.fire({
+                title: "Restart",
+                text: "This will clear your photos and go back from the start.",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Confirm",
+                cancelButtonText: "Cancel"
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const db = await idb.openDB("photoboothDB", 1);
+                    await db.clear("photos");
+                    window.location.href = "index.php";
+                }
+            });
+        });
+
+        // Send to email
+        sendBtn.addEventListener("click", async function() {
+            if (selectedPhotos.length != 3){
+                return;
+            }
+
+            const { value: email } = await Swal.fire({
+                title: "Send to Email",
+                input: "email",
+                inputLabel: "Email address",
+                inputPlaceholder: "name@example.com",
+                showCancelButton: true,
+                confirmButtonText: "Send",
+                cancelButtonText: "Cancel",
+                inputValidator: (value) => {
+                    if (!value) {
+                        return "Please enter a valid email address!";
+                    }
+
+                    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailPattern.test(value)) {
+                        return "Please enter a valid email address!";
+                    }
+                }
+            });
+
+            if (email) {
+                Swal.fire({
+                    title: 'Success',
+                    text: 'Your photostrip will be sent to ' + email,
+                    icon: 'success',
+                    timer: 1000,
+                    showConfirmButton: false,
+                });
+
+            }
+        });
+
+    }
+
+    // Initialize shots
+    (async () => {
+        const photos = await loadPhotos();
+        if (!photos.length) {
+            window.location.href = "index.html";
+            return;
+        }
+        initShots(photos);
+    })();
+
+    </script>
+
+
+
+</body>
+</html>
