@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>My Photo Booth</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- SweetAlert CDN-->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Bootstrap Icons CDN-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+
+</head>
+<body>
+  <div class="container">
+    <h1>Water & Wonders Photobooth</h1>
+
+    <div class="main-row">
+
+        <div class="booth">
+            <div class="camera">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas" style="display:none;"></canvas>
+                <div class="overlay"><div id="countdown"></div></div>
+                
+                <div class="cam-controls">
+                    <button id="toggleCamBtn">Start</button>
+                    <button id="captureBtn" style="display: none" disabled>Take Photo</button>
+                </div>
+            </div>  
+
+        </div>
+        
+        <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px;">
+                <h2>Preview</h2>
+                <button style="margin-right: 10px;" id="resetBtn" disabled>Reset</button>
+            </div>
+
+            <div class="preview">
+                <div class="slot"><span>1</span></div>
+                <div class="slot"><span>2</span></div>
+                <div class="slot"><span>3</span></div>
+                <div class="slot"><span>4</span></div>
+                <div class="slot"><span>5</span></div>
+                <div class="slot"><span>6</span></div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-around; padding: 10px;">
+                <button id="nextBtn" disabled>Next</button>
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="controls">
+        <div class="control-item">
+            <label for="cameraSelect">Camera:</label>
+            <select id="cameraSelect">
+            </select>
+        </div>
+    </div>
+
+
+  </div>
+
+  <script>
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const cameraSelect = document.getElementById("cameraSelect");
+        const toggleCamBtn = document.getElementById("toggleCamBtn");
+        const captureBtn = document.getElementById("captureBtn");
+        const resetBtn = document.getElementById("resetBtn");
+        const nextBtn = document.getElementById("nextBtn");
+
+        let stream = null;
+        let camOpen = false; 
+
+
+        // Get all cameras
+        async function getCameras() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        cameraSelect.innerHTML = '';
+        videoDevices.forEach((device, i) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Camera ${i+1}`;
+            cameraSelect.appendChild(option);
+        });
+        }
+
+        getCameras();
+
+        // Function to start camera
+        async function startCamera(deviceId) {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop()); // stop old stream
+            }
+
+            try {
+                if (photoIndex == slots.length){
+                    Swal.fire(
+                        'Error!',
+                        'No available slots! Delete shots or proceed to the Next step',
+                        'error'
+                    );
+                    return;
+                }
+                
+                await openCam(deviceId);
+
+            } catch (err) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Camera Error',
+                    text: err.message + " or select another camera." || 'Could not access the camera. Please check permissions or device settings.'
+                });
+
+                closeCam();
+                captureBtn.disabled = true;
+                captureBtn.style.display = "none";
+
+                console.error(err);
+            }
+        }
+
+
+        // Toggle Camera button
+        toggleCamBtn.onclick = async () => {
+            if (!camOpen) {
+                await startCamera(cameraSelect.value);
+            } else {
+                closeCam();
+            }
+        };
+
+        async function openCam(deviceId){
+            stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: deviceId ? { exact: deviceId } : undefined },
+            audio: false
+            });
+            video.srcObject = stream;
+
+            captureBtn.disabled = false;
+            resetBtn.disabled = false;
+            toggleCamBtn.innerHTML = '<i class="bi bi-camera-video"></i>';
+            toggleCamBtn.style = "background-color: white; color: #0097a7";
+            captureBtn.style.display = "block";
+
+            camOpen = true;
+        }
+
+        function closeCam(){
+            if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+            }
+            captureBtn.style.display = "none";
+            captureBtn.disabled = true;
+            resetBtn.disabled = true;
+            toggleCamBtn.innerHTML = '<i class="bi bi-camera-video-off"></i>';
+            toggleCamBtn.style = "background-color: red";
+
+            camOpen = false;
+        }
+
+        // When camera selection changes
+        cameraSelect.onchange = async () => {
+        if (camOpen) {
+            await startCamera(cameraSelect.value);
+        }
+        };
+
+
+        // Capturing photo
+
+        // --- Convert base64 → Blob ---
+        function dataURLtoBlob(dataURL) {
+            const arr = dataURL.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], { type: mime });
+        }
+
+        const slots = document.querySelectorAll(".slot");
+        let photoIndex = 0;
+
+        captureBtn.onclick = () => {
+            if (!camOpen) return;
+
+            if (photoIndex < slots.length) {
+
+                let count = 0; // Countdown
+                countdown.textContent = count;
+                captureBtn.textContent = "Capturing...";
+                captureBtn.disabled = true;
+                toggleCamBtn.style.display = "none";
+
+                const interval = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                    countdown.textContent = count;
+                    } else {
+                    clearInterval(interval);
+                    countdown.textContent = '';
+                    takePhoto();
+                    }
+                }, 1000); 
+
+
+           } else {
+                alert("All slots are filled. Reset to take more photos.");
+           }
+        };
+
+
+        function takePhoto() {
+            const ctx = canvas.getContext("2d");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const dataUrl = canvas.toDataURL("image/png"); 
+            const blob = dataURLtoBlob(dataUrl);
+            const objectUrl = URL.createObjectURL(blob);
+
+            if (photoIndex <= slots.length) {
+                const img = document.createElement("img");
+                img.src = objectUrl;   // use Blob URL for display
+                slots[photoIndex].innerHTML = "";
+                slots[photoIndex].appendChild(img);
+
+                // store base64 in memory for localStorage later
+                slots[photoIndex].dataset.base64 = dataUrl;
+
+                photoIndex++;
+                captureBtn.textContent = "Take Photo";
+                captureBtn.disabled = false;
+                toggleCamBtn.style.display = "block";
+            }
+
+            if (photoIndex == slots.length) {
+                closeCam();
+                captureBtn.style.display = "none";
+                captureBtn.disabled = true;
+                nextBtn.disabled = false;
+                resetBtn.disabled = false;
+            }
+        }
+
+        
+        // Reset button clears slots
+        resetBtn.onclick = () => {
+
+            if (photoIndex != slots.length && photoIndex < 1){
+                resetBtn.disabled = true;
+                return;
+            }
+
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This will clear all photos!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    slots.forEach((slot, i) => {
+                        slot.innerHTML = `<span>${i+1}</span>`;
+                    });
+                    photoIndex = 0;
+                    resetBtn.disabled = true;
+
+                    Swal.fire(
+                        'Reset!',
+                        'All photos have been cleared.',
+                        'success'
+                    );
+                }
+            });
+        };
+
+
+        // --- Next button ---
+        nextBtn.onclick = async () => {
+            if (photoIndex < 6) return;
+
+            const images = [];
+            slots.forEach(slot => {
+                if (slot.dataset.base64) {
+                    images.push(slot.dataset.base64); // save base64 version
+                }
+            });
+
+            localStorage.setItem("photos", JSON.stringify(images));
+            window.location.href = "strip.html";
+        };
+
+
+  </script>
+
+</body>
+</html>
