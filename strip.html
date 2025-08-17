@@ -12,6 +12,8 @@
     <!-- Bootstrap Icons CDN-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
 
+    <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+
 </head>
 <body>
   <div class="container">
@@ -76,13 +78,8 @@
 
 
     <script>
-    
-        if (!localStorage.getItem("photos") || JSON.parse(localStorage.getItem("photos")).length === 0) {
-            window.location.href = "index.html";
-        }
+            // Load photos from localStorage
 
-        // Load photos from localStorage
-        const photos = JSON.parse(localStorage.getItem("photos")) || [];
         const slots = document.querySelectorAll(".slot-select");
         const previewSlots = document.querySelectorAll(".slot-preview");
         const finalSlots = document.querySelectorAll(".slot-final");
@@ -107,6 +104,30 @@
             return URL.createObjectURL(blob);
         }
 
+            // ---- IndexedDB loader ----
+        async function loadPhotos() {
+            const db = await idb.openDB("photoboothDB", 1);
+            const photos = [];
+            for (let i = 0; i < 6; i++) {
+                const photo = await db.get("photos", `photo-${i}`);
+                if (photo) photos.push(photo);
+            }
+            return photos;
+        }
+
+
+    // ---- Gallery logic ----
+    function initGallery(photos) {
+        const slots = document.querySelectorAll(".slot-select");
+        const previewSlots = document.querySelectorAll(".slot-preview");
+        const finalSlots = document.querySelectorAll(".slot-final");
+
+        const downloadBtn = document.getElementById("downloadBtn");
+        const sendBtn = document.getElementById("sendBtn");
+        const restartBtn = document.getElementById("restartBtn");
+
+        let selectedPhotos = [];
+
         function updateFinalSlots() {
             previewSlots.forEach((slot, i) => {
                 slot.innerHTML = "";
@@ -119,20 +140,19 @@
                 }
             });
 
-            finalSlots.forEach((previewslot, i) => {
-                previewslot.innerHTML = "";
+            finalSlots.forEach((slot, i) => {
+                slot.innerHTML = "";
                 if (selectedPhotos[i]) {
                     const img = document.createElement("img");
                     img.src = base64ToBlobUrl(selectedPhotos[i]);
-                    previewslot.appendChild(img);
+                    slot.appendChild(img);
                 } else {
-                    previewslot.innerHTML = `<span>${i + 1}</span>`; 
+                    slot.innerHTML = `<span>${i + 1}</span>`; 
                 }
             });
         }
 
-
-
+        // Render slots
         photos.forEach((src, i) => {
             if (slots[i]) {
                 slots[i].innerHTML = ""; 
@@ -142,17 +162,17 @@
                 img.dataset.index = i;
                 slots[i].appendChild(img);
 
-                // Selection
+                // Selection logic
                 img.addEventListener("click", () => {
                     const idx = selectedPhotos.indexOf(src);
 
-                    // Remove Select
                     if (idx > -1) {
+                        // Remove selection
                         selectedPhotos.splice(idx, 1);
                         img.style.border = "none";
                         img.style.opacity = "100%";
                     } else {
-                    // Already selected 3
+                        // Limit 3
                         if (selectedPhotos.length >= 3) {
                             Swal.fire("Limit Reached!", "You can only select 3 photos.", "error");
                             return;
@@ -161,16 +181,18 @@
                         img.style.opacity = "50%";
                     }
 
-                    // Update
                     updateFinalSlots();
                 });
             }
         });
 
-        // ACTIONS
+        // ---- Actions ----
+        downloadBtn.addEventListener("click", async function() {
+            if (selectedPhotos.length < 3) {
+                Swal.fire("Pick 3 Photos!", "You need to select exactly 3 shots.", "error");
+                return;
+            }
 
-        // Export/Download
-        document.getElementById("downloadBtn").addEventListener("click", async function() {
             const canvasWidth = 707;
             const canvasHeight = 2000;
             const canvas = document.createElement("canvas");
@@ -184,7 +206,6 @@
             await bg.decode();
             ctx.drawImage(bg, 0, 0, canvasWidth, canvasHeight);
 
-            // Slots
             async function drawSlot(imgSrc, x, y, w, h) {
                 return new Promise((resolve, reject) => {
                     if (!imgSrc) { resolve(); return; }
@@ -200,13 +221,12 @@
                 });
             }
 
-            // Slot Positions
             const slotX = (canvasWidth - 625) / 2; 
             await drawSlot(selectedPhotos[0], slotX, 70, 625, 485);
             await drawSlot(selectedPhotos[1], slotX, 585, 625, 485);
             await drawSlot(selectedPhotos[2], slotX, 1100, 625, 485);
 
-            // Overlay design
+            // Overlay
             const overlay = new Image();
             overlay.src = "assets/design.png";
             await overlay.decode();
@@ -221,26 +241,33 @@
             Swal.fire("Downloaded!", "Your photobooth strip has been saved.", "success");
         });
 
-        // Send to Email
-        // teka lang nak
-
-
-        // Restart
-        document.getElementById("restartBtn").addEventListener("click", function() {
+        restartBtn.addEventListener("click", async function() {
             Swal.fire({
                 title: "Restart?",
-                text: "This will clear your photos and back to the start",
+                text: "This will clear your photos and go back to the start.",
                 icon: "warning",
                 showCancelButton: true,
                 confirmButtonText: "Restart",
                 cancelButtonText: "Cancel"
-            }).then((result) => {
+            }).then(async (result) => {
                 if (result.isConfirmed) {
-                    localStorage.clear();
+                    const db = await idb.openDB("photoboothDB", 1);
+                    await db.clear("photos");
                     window.location.href = "index.html";
                 }
             });
         });
+    }
+
+    // ---- Init ----
+    (async () => {
+        const photos = await loadPhotos();
+        if (!photos.length) {
+            window.location.href = "index.html";
+            return;
+        }
+        initGallery(photos);
+    })();
 
     </script>
 
